@@ -141,7 +141,6 @@ module ActiveRecord
           else
             ODBC.connect(@config[:dsn], @config[:username], @config[:password])
           end
-        configure_time_options(@raw_connection)
       end
 
       # Disconnects from the database if already connected. Otherwise, this
@@ -210,6 +209,11 @@ module ActiveRecord
         end
       end
 
+      # Ensure ODBC is mapping time-based fields to native ruby objects
+      def configure_connection
+        @raw_connection.use_time = true
+      end
+
       private
 
       # Can't use the built-in ActiveRecord map#alias_type because it doesn't
@@ -219,11 +223,6 @@ module ActiveRecord
         map.register_type(new_type) do |_, *args|
           map.lookup(old_type, *args)
         end
-      end
-
-      # Ensure ODBC is mapping time-based fields to native ruby objects
-      def configure_time_options(connection)
-        connection.use_time = true
       end
     end
   end
