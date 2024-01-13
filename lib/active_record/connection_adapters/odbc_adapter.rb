@@ -101,7 +101,6 @@ module ActiveRecord
       attr_reader :database_metadata
 
       def initialize(connection, logger, config, database_metadata)
-        configure_time_options(connection)
         super(connection, logger, config)
         @database_metadata = database_metadata
       end
@@ -123,28 +122,35 @@ module ActiveRecord
       # includes checking whether the database is actually capable of
       # responding, i.e. whether the connection isn't stale.
       def active?
-        @connection.connected?
+        !!@raw_connection&.connected?
       end
 
       # Disconnects from the database if already connected, and establishes a
       # new connection with the database.
       def reconnect!
         disconnect!
-        @connection =
+        connect
+        super
+      end
+      alias reset! reconnect!
+
+      def connect
+        @raw_connection =
           if @config[:driver]
             ODBC::Database.new.drvconnect(@config[:driver])
           else
             ODBC.connect(@config[:dsn], @config[:username], @config[:password])
           end
-        configure_time_options(@connection)
-        super
+        configure_time_options(@raw_connection)
       end
-      alias reset! reconnect!
 
       # Disconnects from the database if already connected. Otherwise, this
       # method does nothing.
       def disconnect!
-        @connection.disconnect if @connection.connected?
+        super
+
+        @raw_connection.disconnect if active?
+        @raw_connection = nil
       end
 
       # Build a new column object from the given options. Effectively the same
