@@ -7,12 +7,14 @@ module ODBCAdapter
 
     # Executes the SQL statement in the context of this connection.
     # Returns the number of rows affected.
-    def execute(sql, name = nil, binds = [])
+    def internal_execute(sql, name = nil, binds = [])
       log(sql, name) do
-        if prepared_statements
-          @connection.do(sql, *prepared_binds(binds))
-        else
-          @connection.do(sql)
+        with_raw_connection do |conn|
+          if prepared_statements
+            conn.do(sql, *prepared_binds(binds))
+          else
+            conn.do(sql)
+          end
         end
       end
     end
@@ -20,22 +22,24 @@ module ODBCAdapter
     # Executes +sql+ statement in the context of this connection using
     # +binds+ as the bind substitutes. +name+ is logged along with
     # the executed +sql+ statement.
-    def exec_query(sql, name = 'SQL', binds = [], prepare: false) # rubocop:disable Lint/UnusedMethodArgument
+    def internal_exec_query(sql, name = 'SQL', binds = [], prepare: false) # rubocop:disable Lint/UnusedMethodArgument
       log(sql, name) do
-        stmt =
-          if prepared_statements
-            @connection.run(sql, *prepared_binds(binds))
-          else
-            @connection.run(sql)
-          end
+        with_raw_connection do |conn|
+          stmt =
+            if prepared_statements
+              conn.run(sql, *prepared_binds(binds))
+            else
+              conn.run(sql)
+            end
 
-        columns = stmt.columns
-        values  = stmt.to_a
-        stmt.drop
+          columns = stmt.columns
+          values  = stmt.to_a
+          stmt.drop
 
-        values = dbms_type_cast(columns.values, values)
-        column_names = columns.keys.map { |key| format_case(key) }
-        ActiveRecord::Result.new(column_names, values)
+          values = dbms_type_cast(columns.values, values)
+          column_names = columns.keys.map { |key| format_case(key) }
+          ActiveRecord::Result.new(column_names, values)
+        end
       end
     end
 
@@ -49,20 +53,26 @@ module ODBCAdapter
 
     # Begins the transaction (and turns off auto-committing).
     def begin_db_transaction
-      @connection.autocommit = false
+      with_raw_connection do |conn|
+        conn.autocommit = false
+      end
     end
 
     # Commits the transaction (and turns on auto-committing).
     def commit_db_transaction
-      @connection.commit
-      @connection.autocommit = true
+      with_raw_connection do |conn|
+        conn.commit
+        conn.autocommit = true
+      end
     end
 
     # Rolls back the transaction (and turns on auto-committing). Must be
     # done if the transaction block raises an exception or returns false.
     def exec_rollback_db_transaction
-      @connection.rollback
-      @connection.autocommit = true
+      with_raw_connection do |conn|
+        conn.rollback
+        conn.autocommit = true
+      end
     end
 
     # Returns the default sequence name for a table.
