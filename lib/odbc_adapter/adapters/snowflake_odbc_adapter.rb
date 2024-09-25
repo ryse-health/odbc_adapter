@@ -16,6 +16,11 @@ module ODBCAdapter
         name.to_s
       end
 
+      # Quoting needs to be changed for snowflake
+      def quote_table_name(name)
+        name.to_s
+      end
+
       private
 
       # Override dbms_type_cast to get the values encoded in UTF-8
